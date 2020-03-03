@@ -1,4 +1,7 @@
 #include<iostream>
+#include <string>
+#include <stdlib.h>
+#include <unordered_map>
 using namespace std;
 
 //Max-Fibonacci Heap Structure
@@ -17,6 +20,7 @@ struct Node{
 class FibonacciHeap{
 public:
   Node *head;
+  unordered_map<string,Node *> umap;
   Node *max;
   int numNodes=0;
   void insert(string name,int frequency);
@@ -25,8 +29,11 @@ public:
   void pairwise_combine();
   void add_child(Node *Child,Node *Parent);
   void find_max();
+  void set_parent(Node *start);
   // void meld(Node* head1, Node* head2);
-  // void increase_key(Node *node, int value);
+  void remove_child(Node *heap_node,Node *parent_node);
+  void cascade_cut(Node *parent_node);
+  void increase_key(string hashtag, int value);
   void print_heap();
 };
 
@@ -35,7 +42,7 @@ Node :: Node(string name, int frequency){
   this->frequency = frequency;
   this->name = name;
   this->degree = 0;
-  this->childCut = false;
+  //this->childCut = false;
   this->parent = nullptr;
   this->children = nullptr;
   this->left = nullptr;
@@ -62,6 +69,7 @@ void FibonacciHeap :: insert(string name,int frequency){
       heap_node ->right = head;
     }
   }
+  umap.insert({name,heap_node});
   if(heap_node->frequency > head->frequency){
     head = heap_node;
   }
@@ -127,22 +135,24 @@ void FibonacciHeap :: remove_max(){
   else{
     Node *temp = head;
     Node *head_children = head->children;
-    // temp->right->left = head_children->left;
-    // temp->left->right = head->children;
-    // head->children->left->right = temp->right;
+    set_parent(head_children);
     head_children->left->right = temp->right;
     temp->right->left = head_children->left;
     head_children->left = temp->left;
-    // if(temp->right->right == head){
-    //   temp->right->right = head_children;
-    // }
     temp->left->right = head_children;
     head = head->children;
-    //cout<<"printing:";
-    //print_heap();
   }
    pairwise_combine();
    find_max();
+}
+
+void FibonacciHeap :: set_parent(Node *start){
+  Node *temp = start;
+  while(temp->right != start){
+    temp->parent = nullptr;
+    temp = temp->right;
+  }
+  temp->parent = nullptr;
 }
 
 void FibonacciHeap :: pairwise_combine(){
@@ -162,33 +172,15 @@ void FibonacciHeap :: pairwise_combine(){
       p = p->right;
     }
     if(temp->degree == p->degree){
-      //cout<<"----"<<endl;
       if(temp->frequency > p->frequency && temp->name != p->name){
-        //temp->right = p->right;
-        // cout<<"temp->name "<<temp->name<<" p->name : "<<p->name<<endl;
-        // cout<<"temp->left->left "<<temp->left->left->name<<endl;
-        // cout<<"temp->right->left "<<temp->right->left->name<<endl;
-        // cout<<"temp->left "<<temp->left->name<<endl;
-        // cout<<"temp->right "<<temp->right->name<<endl;
-        // cout<<"temp->left->right "<<temp->left->right->name<<endl;
         p->left->right = p->right;
         p->right->left = p->left;
         add_child(p,temp);
         //cout<<"Making "<<p->name<<" child of "<<temp->name<<" with parent having degree: "<<temp->degree<<endl;
         numNodes--;
         flag = true;
-        //temp = head;
       }
       else if(temp->frequency < p->frequency && temp->name != p->name){
-        //cout<<"temp->name "<<temp->name<<" p->name : "<<p->name<<endl;
-        //p->left = temp->left;
-        //temp->left->right = p;
-        //print_heap();
-        // cout<<"temp->left->left "<<temp->left->left->name<<endl;
-        // cout<<"temp->right->left "<<temp->right->left->name<<endl;
-        // cout<<"temp->left "<<temp->left->name<<endl;
-        // cout<<"temp->right "<<temp->right->name<<endl;
-        // cout<<"temp->left->right "<<temp->left->right->name<<endl;
         temp->right->left = temp->left;
         temp->left->right = temp->right;
         add_child(temp,p);
@@ -196,15 +188,11 @@ void FibonacciHeap :: pairwise_combine(){
         flag = true;
         //cout << "p is "<< p->name <<endl;
         head = p;
-
         p = nullptr;
       }
   }
     if(flag){
-      //cout << "head after combine " << head->name <<endl;
-      //cout << "temp is" << temp->name <<endl;
       temp = head;
-      //cout << "new head " << temp->name <<endl;
     }
     else{
       temp = temp->right;
@@ -239,6 +227,53 @@ void FibonacciHeap :: find_max(){
   head = temp_max;
 }
 
+void FibonacciHeap :: increase_key(string hashtag,int value){
+  Node *heap_node = umap.at(hashtag);
+  heap_node->frequency += value;
+  Node *parent_node = heap_node->parent;
+  if(parent_node != nullptr){
+    if(heap_node->frequency > parent_node->frequency){
+      remove_child(heap_node,parent_node);
+      cascade_cut(parent_node);
+    }
+  }
+  if(heap_node->frequency > head->frequency){
+    head = heap_node;
+  }
+}
+
+void FibonacciHeap :: remove_child(Node *heap_node,Node *parent_node){
+  heap_node->left->right = heap_node->right;
+  heap_node->right->left = heap_node->left;
+  parent_node->degree -= 1;
+  if(parent_node->children == heap_node){
+    parent_node->children = heap_node->right;
+  }
+  if(parent_node->degree == 0){
+    parent_node->children = nullptr;
+  }
+
+  heap_node->left = head;
+  heap_node->right = head->right;
+  head->right->left = heap_node;
+  head->right = heap_node;
+  heap_node->childCut = false;
+  heap_node->parent = nullptr;
+}
+
+void FibonacciHeap :: cascade_cut(Node *parent_node){
+  Node *parent_ptr = parent_node->parent;
+  if(parent_ptr != nullptr){
+    if(parent_node->childCut == false){
+      parent_node->childCut = true;
+    }
+    else{
+      remove_child(parent_node,parent_ptr);
+      cascade_cut(parent_ptr);
+    }
+  }
+}
+
 int main(int argc, char const *argv[]) {
   FibonacciHeap *object = new FibonacciHeap();
   Node *head;
@@ -259,28 +294,49 @@ int main(int argc, char const *argv[]) {
   cout<<endl;
   cout<<"---------------------------------"<<endl;
 
+  // Node *maximum1 = object->extract_max();
+  // cout<<"Max removed:"<<maximum1->name<<endl;
+  // object->print_heap();
+  // cout<<endl;
+  // cout<<"---------------------------------"<<endl;
+  //
+  // Node *maximum2 = object->extract_max();
+  // cout<<"Max removed:"<<maximum2->name<<endl;
+  // object->print_heap();
+  // cout<<endl;
+  // cout<<"---------------------------------"<<endl;
+  //
+  // Node *maximum3 = object->extract_max();
+  // cout<<"Max removed:"<<maximum3->name<<endl;
+  // object->print_heap();
+  // cout<<endl;
+  // cout<<"---------------------------------"<<endl;
+  //
+  // Node *maximum4 = object->extract_max();
+  // cout<<"Max removed:"<<maximum4->name<<endl;
+  // object->print_heap();
+  // cout<<endl;
+
+  // cout<<"Printing hashmap:"<<endl;
+  // for(auto itr = object->umap.begin();itr != object->umap.end();itr++){
+  //   cout<<itr->first<<" : "<<itr->second->frequency<<endl;
+  // }
+  //cout<<"Get sunday parent: "<<object->umap.at("sunday")->parent->name<<endl;
+  object->increase_key("reading",3);
+  object->print_heap();
+  cout<<endl;
+  object->increase_key("sunday",7);
+  object->print_heap();
+  cout<<endl;
+  object->increase_key("play",7);
+  object->print_heap();
+  cout<<endl;
+
   Node *maximum1 = object->extract_max();
   cout<<"Max removed:"<<maximum1->name<<endl;
   object->print_heap();
   cout<<endl;
   cout<<"---------------------------------"<<endl;
-
-  Node *maximum2 = object->extract_max();
-  cout<<"Max removed:"<<maximum2->name<<endl;
-  object->print_heap();
-  cout<<endl;
-  cout<<"---------------------------------"<<endl;
-
-  Node *maximum3 = object->extract_max();
-  cout<<"Max removed:"<<maximum3->name<<endl;
-  object->print_heap();
-  cout<<endl;
-  cout<<"---------------------------------"<<endl;
-
-  Node *maximum4 = object->extract_max();
-  cout<<"Max removed:"<<maximum4->name<<endl;
-  object->print_heap();
-  cout<<endl;
 
   return 0;
 }
