@@ -2,6 +2,8 @@
 #include <string>
 #include <stdlib.h>
 #include <unordered_map>
+#include<vector>
+#include <fstream>
 using namespace std;
 
 //Max-Fibonacci Heap Structure
@@ -30,11 +32,12 @@ public:
   void add_child(Node *Child,Node *Parent);
   void find_max();
   void set_parent(Node *start);
-  // void meld(Node* head1, Node* head2);
+  void reinsert(string name,int frequency);
   void remove_child(Node *heap_node,Node *parent_node);
   void cascade_cut(Node *parent_node);
   void increase_key(string hashtag, int value);
   void print_heap();
+  vector<string> top_k_hashtags(long k);
 };
 
 
@@ -42,11 +45,26 @@ Node :: Node(string name, int frequency){
   this->frequency = frequency;
   this->name = name;
   this->degree = 0;
-  //this->childCut = false;
+  this->childCut = false;
   this->parent = nullptr;
   this->children = nullptr;
   this->left = nullptr;
   this->right = nullptr;
+}
+
+vector<string> FibonacciHeap :: top_k_hashtags(long k){
+  vector<string> k_freq;
+  vector<Node*> k_freq_nodes;
+  for (int i = 0; i < k; i++) {
+    Node *max_node = extract_max();
+    //cout<<"max is : "<<max_node->name<<endl;
+    k_freq.push_back(max_node->name);
+    k_freq_nodes.push_back(max_node);
+  }
+  for(auto a:k_freq_nodes){
+    reinsert(a->name,a->frequency);
+  }
+  return k_freq;
 }
 
 void FibonacciHeap :: insert(string name,int frequency){
@@ -77,18 +95,15 @@ void FibonacciHeap :: insert(string name,int frequency){
 }
 
 void FibonacciHeap :: add_child(Node *m, Node *n){
-  //cout<<"Adding child"<<endl;
   m->right->left = m->left;
   m->left->right = m->right;
   m->parent = n;
   if(n->children == nullptr){
-    //cout<<"NULL"<<endl;
     n->children = m;
     m->left = m;
     m->right = m;
   }
   else{
-    //cout<<"Here"<<endl;
     m->left = n->children;
     m->right = n->children->right;
     n->children->right->left = m;
@@ -98,10 +113,18 @@ void FibonacciHeap :: add_child(Node *m, Node *n){
   n->degree = n->degree + 1;
 }
 
+void FibonacciHeap :: reinsert(string name, int frequency){
+  if(umap.count(name)>0){
+    increase_key(name,frequency);
+  }else{
+    insert(name,frequency);
+  }
+  //print_heap();
+}
+
 void FibonacciHeap :: print_heap(){
   Node *temp = head;
   if(temp == nullptr){
-    //cout<<"Empty"<<endl;
     return;
   }
   while(temp->right != head){
@@ -112,10 +135,12 @@ void FibonacciHeap :: print_heap(){
 }
 
 Node* FibonacciHeap :: extract_max(){
-  //get head Node
-  //remove head node and insert its children in doubly circular list
-  //do pairwise combine
+  //cout<<"extracting max"<<endl;
+  if(head == nullptr){
+    cout<<"extract max failed"<<endl;
+  }
   Node *max = head;
+  umap.erase(max->name);
   remove_max();
   numNodes--;
   return max;
@@ -127,12 +152,14 @@ void FibonacciHeap :: remove_max(){
     return;
   }
   if(head->children == nullptr){
+    //cout<<"case 1"<<endl;
     Node *temp = head->right;
     temp->left = head->left;
     temp->left->right = temp;
     head = temp;
   }
   else{
+    //cout<<"case 2"<<endl;
     Node *temp = head;
     Node *head_children = head->children;
     set_parent(head_children);
@@ -156,6 +183,7 @@ void FibonacciHeap :: set_parent(Node *start){
 }
 
 void FibonacciHeap :: pairwise_combine(){
+  //cout<<"pairwise combining"<<endl;
   if(head == nullptr){
     return;
   }
@@ -166,13 +194,12 @@ void FibonacciHeap :: pairwise_combine(){
   while(temp->right != head){
     p = temp->right;
     //cout<<"Checking "<<temp->name<<" "<<p->name<<endl;
-    //cout<<"Matched degree of:("<<temp->name<<":"<<temp->degree<<") with ";
     while(p->degree != temp->degree && p != head){
       //cout<<"temp->name "<<temp->name<<" p->name : "<<p->name<<endl;
       p = p->right;
     }
     if(temp->degree == p->degree){
-      if(temp->frequency > p->frequency && temp->name != p->name){
+      if(temp->frequency >= p->frequency && temp->name != p->name){
         p->left->right = p->right;
         p->right->left = p->left;
         add_child(p,temp);
@@ -180,7 +207,7 @@ void FibonacciHeap :: pairwise_combine(){
         numNodes--;
         flag = true;
       }
-      else if(temp->frequency < p->frequency && temp->name != p->name){
+      else if(temp->frequency <= p->frequency && temp->name != p->name){
         temp->right->left = temp->left;
         temp->left->right = temp->right;
         add_child(temp,p);
@@ -199,19 +226,15 @@ void FibonacciHeap :: pairwise_combine(){
     }
     flag = false;
   }
-
+  //cout<<"combining done"<<endl;
 }
 
 void FibonacciHeap :: find_max(){
   Node *temp = head;
-  //cout<<"Current max: "<<temp->name<<endl;
   Node *temp_max = new Node("dummy",-1)  ;
-  //cout<<"temp_max: "<<temp_max->frequency<<endl;
   int max = temp_max->frequency;
   while(temp->right != head){
-    //cout<<"checking "<<temp->name<<endl;
     if(temp->frequency > max){
-      //cout<<"changing max to: "<<temp->name<<endl;
       max = temp->frequency;
       temp_max = temp;
     }
@@ -223,7 +246,6 @@ void FibonacciHeap :: find_max(){
   if(temp_max == nullptr){
     return;
   }
-  //cout<<"Max node: "<<temp_max->name<<endl;
   head = temp_max;
 }
 
@@ -262,6 +284,7 @@ void FibonacciHeap :: remove_child(Node *heap_node,Node *parent_node){
 }
 
 void FibonacciHeap :: cascade_cut(Node *parent_node){
+  //cout<<"cascading"<<endl;
   Node *parent_ptr = parent_node->parent;
   if(parent_ptr != nullptr){
     if(parent_node->childCut == false){
@@ -276,67 +299,31 @@ void FibonacciHeap :: cascade_cut(Node *parent_node){
 
 int main(int argc, char const *argv[]) {
   FibonacciHeap *object = new FibonacciHeap();
-  Node *head;
-  object->insert("sunday",3);
-  object->insert("saturday",9);
-  object->insert("monday",4);
-  object->insert("reading",8);
-  object->insert("play",1);
-  object->insert("sleep",11);
-  object->insert("vivek",6);
-  object->print_heap();
-  cout<<endl;
-  cout<<"---------------------------------"<<endl;
-
-  Node *maximum = object->extract_max();
-  cout<<"Max removed:"<<maximum->name<<endl;
-  object->print_heap();
-  cout<<endl;
-  cout<<"---------------------------------"<<endl;
-
-  // Node *maximum1 = object->extract_max();
-  // cout<<"Max removed:"<<maximum1->name<<endl;
-  // object->print_heap();
-  // cout<<endl;
-  // cout<<"---------------------------------"<<endl;
-  //
-  // Node *maximum2 = object->extract_max();
-  // cout<<"Max removed:"<<maximum2->name<<endl;
-  // object->print_heap();
-  // cout<<endl;
-  // cout<<"---------------------------------"<<endl;
-  //
-  // Node *maximum3 = object->extract_max();
-  // cout<<"Max removed:"<<maximum3->name<<endl;
-  // object->print_heap();
-  // cout<<endl;
-  // cout<<"---------------------------------"<<endl;
-  //
-  // Node *maximum4 = object->extract_max();
-  // cout<<"Max removed:"<<maximum4->name<<endl;
-  // object->print_heap();
-  // cout<<endl;
-
-  // cout<<"Printing hashmap:"<<endl;
-  // for(auto itr = object->umap.begin();itr != object->umap.end();itr++){
-  //   cout<<itr->first<<" : "<<itr->second->frequency<<endl;
-  // }
-  //cout<<"Get sunday parent: "<<object->umap.at("sunday")->parent->name<<endl;
-  object->increase_key("reading",3);
-  object->print_heap();
-  cout<<endl;
-  object->increase_key("sunday",7);
-  object->print_heap();
-  cout<<endl;
-  object->increase_key("play",7);
-  object->print_heap();
-  cout<<endl;
-
-  Node *maximum1 = object->extract_max();
-  cout<<"Max removed:"<<maximum1->name<<endl;
-  object->print_heap();
-  cout<<endl;
-  cout<<"---------------------------------"<<endl;
-
+  ifstream file;
+  file.open("input.txt");
+  ofstream myfile;
+  myfile.open ("output.txt");
+  string line,name;
+  while(getline(file,line)){
+    if(line[0] == '#'){
+      name = line.substr(1,string::npos);
+      string hashtag = name.substr(0,name.find(' '));
+      int freq = stoi(name.substr(name.find(' '),string::npos),nullptr,10);
+      object->reinsert(hashtag,freq);
+    }
+    else if((line[0]>'0') && (line[0]<='9')){
+      int top_K = stoi(line,nullptr,10);
+      vector<string> output = object->top_k_hashtags(top_K);
+      string text="";
+      for (int i = 0; i < output.size(); i++) {
+        text = text + output[i] + ",";
+      }
+      myfile << text.substr(0,text.size()-1) << endl;
+    }
+    else if (line == "stop"){
+      break;
+    }
+  }
+  myfile.close();
   return 0;
 }
