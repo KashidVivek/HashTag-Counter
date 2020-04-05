@@ -1,2 +1,0 @@
-saturday,sunday,reading,monday,school,class,drawing,playing_games,friday,tuesday
-saturday,sunday,reading,friday,monday
